@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0b0f14">
+<title>Buhar Ölçer</title>
+<link rel="manifest" href="manifest.json">
+<style>
+  :root {
+    --bg: #0b0f14;
+    --bg-elevated: #121820;
+    --card: #171f2a;
+    --card-hover: #1d2733;
+    --border: #232e3d;
+    --text: #e7edf3;
+    --text-dim: #7d8ba0;
+    --steam-blue: #66c0f4;
+    --steam-blue-deep: #1a4d6d;
+    --online: #6fce4b;
+    --ingame: #a97ff0;
+    --offline: #5a6674;
+    --accent-line: linear-gradient(90deg, #66c0f4, #a97ff0);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+    overscroll-behavior-y: contain;
+  }
+  #app { min-height: 100vh; display: flex; flex-direction: column; }
+
+  header {
+    padding: 22px 20px 16px;
+    position: sticky;
+    top: 0;
+    background: linear-gradient(180deg, var(--bg) 70%, transparent);
+    z-index: 5;
+  }
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--steam-blue);
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  h1 {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+  .status-line {
+    height: 2px;
+    width: 46px;
+    background: var(--accent-line);
+    margin-top: 10px;
+    border-radius: 2px;
+  }
+  .summary-row {
+    display: flex;
+    gap: 18px;
+    margin-top: 16px;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .summary-row b { color: var(--text); font-size: 15px; }
+  .dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; }
+
+  main { flex: 1; padding: 4px 16px 100px; }
+
+  .section-label {
+    font-size: 12px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    font-weight: 700;
+    margin: 20px 6px 10px;
+  }
+
+  .friend-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    transition: background 0.15s ease, transform 0.1s ease;
+  }
+  .friend-card:active { transform: scale(0.98); background: var(--card-hover); }
+
+  .avatar-wrap { position: relative; flex-shrink: 0; }
+  .avatar {
+    width: 48px; height: 48px;
+    border-radius: 9px;
+    background: var(--bg-elevated);
+    object-fit: cover;
+    display: block;
+  }
+  .status-dot {
+    position: absolute;
+    bottom: -3px; right: -3px;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 3px solid var(--card);
+  }
+
+  .friend-info { flex: 1; min-width: 0; }
+  .friend-name {
+    font-size: 15px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .friend-sub {
+    font-size: 12.5px;
+    color: var(--text-dim);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .friend-sub.ingame { color: var(--ingame); font-weight: 600; }
+  .friend-sub.online { color: var(--online); font-weight: 600; }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-dim);
+  }
+  .empty-state .big { font-size: 40px; margin-bottom: 12px; }
+  .empty-state p { font-size: 14px; line-height: 1.6; }
+
+  /* Bottom nav / refresh button */
+  .fab {
+    position: fixed;
+    bottom: 22px; right: 20px;
+    width: 54px; height: 54px;
+    border-radius: 16px;
+    background: var(--steam-blue);
+    color: #05161f;
+    border: none;
+    font-size: 22px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 24px rgba(102,192,244,0.35);
+    z-index: 10;
+  }
+  .fab.spinning svg { animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .gear-btn {
+    position: fixed;
+    bottom: 22px; left: 20px;
+    width: 54px; height: 54px;
+    border-radius: 16px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 20px;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 10;
+  }
+
+  /* Settings overlay */
+  .overlay {
+    position: fixed; inset: 0;
+    background: rgba(5,8,12,0.88);
+    backdrop-filter: blur(6px);
+    z-index: 50;
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  .overlay.show { display: flex; }
+  .sheet {
+    background: var(--bg-elevated);
+    border-top: 1px solid var(--border);
+    border-radius: 20px 20px 0 0;
+    width: 100%;
+    max-width: 480px;
+    padding: 22px 20px 34px;
+    max-height: 88vh;
+    overflow-y: auto;
+  }
+  .sheet h2 { font-size: 18px; margin-bottom: 4px; }
+  .sheet .hint { font-size: 12.5px; color: var(--text-dim); margin-bottom: 18px; line-height: 1.6; }
+  label {
+    display: block;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    font-weight: 700;
+    margin: 16px 0 6px;
+  }
+  input[type=text], input[type=password] {
+    width: 100%;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    color: var(--text);
+    font-size: 14px;
+  }
+  input:focus { outline: none; border-color: var(--steam-blue); }
+  .save-btn {
+    width: 100%;
+    margin-top: 22px;
+    padding: 14px;
+    border-radius: 12px;
+    border: none;
+    background: var(--steam-blue);
+    color: #05161f;
+    font-weight: 800;
+    font-size: 15px;
+  }
+  .link { color: var(--steam-blue); text-decoration: none; }
+  .close-x {
+    position: absolute; top: 16px; right: 20px;
+    background: none; border: none; color: var(--text-dim);
+    font-size: 20px;
+  }
+  .sheet { position: relative; }
+  .err-box {
+    margin-top: 14px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(230,57,70,0.12);
+    border: 1px solid rgba(230,57,70,0.4);
+    color: #ff9aa2;
+    font-size: 12.5px;
+    display: none;
+    line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="eyebrow">Buhar Ölçer</div>
+    <h1>Arkadaşlar</h1>
+    <div class="status-line"></div>
+    <div class="summary-row" id="summaryRow">
+      <span><span class="dot" style="background:var(--online)"></span><b id="onlineCount">–</b> çevrimiçi</span>
+      <span><span class="dot" style="background:var(--ingame)"></span><b id="ingameCount">–</b> oyunda</span>
+      <span id="lastUpdated">Henüz güncellenmedi</span>
+    </div>
+  </header>
+
+  <main>
+    <div id="listArea">
+      <div class="empty-state">
+        <div class="big">🎮</div>
+        <p>Başlamak için sol alttaki dişli ikonuna dokun<br>ve Steam bilgilerini gir.</p>
+      </div>
+    </div>
+  </main>
+
+  <button class="gear-btn" onclick="openSettings()">⚙️</button>
+  <button class="fab" id="refreshBtn" onclick="manualRefresh()">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/>
+    </svg>
+  </button>
+</div>
+
+<div class="overlay" id="settingsOverlay">
+  <div class="sheet">
+    <button class="close-x" onclick="closeSettings()">✕</button>
+    <h2>Steam Ayarları</h2>
+    <div class="hint">
+      1) API anahtarı: <a class="link" href="https://steamcommunity.com/dev/apikey" target="_blank">steamcommunity.com/dev/apikey</a> adresine git, giriş yap, "Domain Name" kısmına <b>localhost</b> yaz, kaydet ve verilen anahtarı kopyala.<br><br>
+      2) SteamID64: <a class="link" href="https://steamid.io" target="_blank">steamid.io</a> sitesine profil linkini yapıştırıp 17 haneli numaranı bul.<br><br>
+      3) Proxy adresi: Sana ayrıca verdiğim Cloudflare Worker adresini yapıştır.<br><br>
+      <b>Not:</b> Arkadaş listeni çekebilmek için Steam gizlilik ayarlarında profilinin ve arkadaş listenin herkese açık olması gerekir.
+    </div>
+
+    <label>Steam Web API Key</label>
+    <input type="password" id="apiKeyInput" placeholder="örn: A1B2C3D4E5F6...">
+
+    <label>SteamID64</label>
+    <input type="text" id="steamIdInput" placeholder="örn: 76561198012345678">
+
+    <label>Proxy Worker Adresi</label>
+    <input type="text" id="proxyInput" placeholder="https://steam-proxy.senin-adin.workers.dev">
+
+    <div class="err-box" id="errBox"></div>
+
+    <button class="save-btn" onclick="saveSettings()">Kaydet ve Bağlan</button>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'buhar-olcer-settings-v1';
+let settings = null;
+let refreshTimer = null;
+
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    settings = raw ? JSON.parse(raw) : null;
+  } catch (e) { settings = null; }
+}
+
+function openSettings() {
+  if (settings) {
+    document.getElementById('apiKeyInput').value = settings.apiKey || '';
+    document.getElementById('steamIdInput').value = settings.steamId || '';
+    document.getElementById('proxyInput').value = settings.proxy || '';
+  }
+  document.getElementById('errBox').style.display = 'none';
+  document.getElementById('settingsOverlay').classList.add('show');
+}
+function closeSettings() {
+  document.getElementById('settingsOverlay').classList.remove('show');
+}
+
+function saveSettings() {
+  const apiKey = document.getElementById('apiKeyInput').value.trim();
+  const steamId = document.getElementById('steamIdInput').value.trim();
+  const proxy = document.getElementById('proxyInput').value.trim().replace(/\/$/, '');
+
+  if (!apiKey || !steamId || !proxy) {
+    showErr('Lütfen tüm alanları doldur.');
+    return;
+  }
+  if (!/^\d{17}$/.test(steamId)) {
+    showErr('SteamID64, 17 haneli bir sayı olmalı (steamid.io ile bulabilirsin).');
+    return;
+  }
+
+  settings = { apiKey, steamId, proxy };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  closeSettings();
+  fetchFriends();
+}
+
+function showErr(msg) {
+  const box = document.getElementById('errBox');
+  box.textContent = msg;
+  box.style.display = 'block';
+}
+
+async function fetchFriends() {
+  if (!settings) { openSettings(); return; }
+  const btn = document.getElementById('refreshBtn');
+  btn.classList.add('spinning');
+
+  try {
+    // 1) Arkadaş listesini al
+    const flRes = await fetch(`${settings.proxy}/?action=friendlist&key=${settings.apiKey}&steamid=${settings.steamId}`);
+    const flData = await flRes.json();
+
+    if (flData.error || !flData.friendslist) {
+      throw new Error(flData.error || 'Arkadaş listesi alınamadı. Profilinin herkese açık olduğundan emin ol.');
+    }
+
+    const ids = flData.friendslist.friends.map(f => f.steamid);
+    if (ids.length === 0) {
+      renderFriends([]);
+      btn.classList.remove('spinning');
+      return;
+    }
+
+    // 2) Durumlarını al (100'erli gruplar halinde)
+    let allPlayers = [];
+    for (let i = 0; i < ids.length; i += 100) {
+      const chunk = ids.slice(i, i + 100).join(',');
+      const psRes = await fetch(`${settings.proxy}/?action=playersummaries&key=${settings.apiKey}&steamids=${chunk}`);
+      const psData = await psRes.json();
+      if (psData.response && psData.response.players) {
+        allPlayers = allPlayers.concat(psData.response.players);
+      }
+    }
+
+    renderFriends(allPlayers);
+    document.getElementById('lastUpdated').textContent = 'Güncellendi: ' + new Date().toLocaleTimeString('tr-TR');
+  } catch (err) {
+    document.getElementById('listArea').innerHTML = `
+      <div class="empty-state">
+        <div class="big">⚠️</div>
+        <p>${escapeHtml(err.message || 'Bir hata oluştu.')}</p>
+      </div>`;
+  } finally {
+    btn.classList.remove('spinning');
+  }
+}
+
+function statusInfo(player) {
+  // personastate: 0 offline, 1 online, 2 busy, 3 away, 4 snooze, 5 looking to trade, 6 looking to play
+  if (player.gameextrainfo) {
+    return { color: 'var(--ingame)', label: player.gameextrainfo, cls: 'ingame' };
+  }
+  if (player.personastate && player.personastate > 0) {
+    const labels = {1:'Çevrimiçi',2:'Meşgul',3:'Uzakta',4:'Uyku modunda',5:'Takas arıyor',6:'Oyun arıyor'};
+    return { color: 'var(--online)', label: labels[player.personastate] || 'Çevrimiçi', cls: 'online' };
+  }
+  return { color: 'var(--offline)', label: 'Çevrimdışı', cls: '' };
+}
+
+function renderFriends(players) {
+  if (players.length === 0) {
+    document.getElementById('listArea').innerHTML = `
+      <div class="empty-state">
+        <div class="big">👥</div>
+        <p>Arkadaş listende kimse görünmüyor.</p>
+      </div>`;
+    document.getElementById('onlineCount').textContent = '0';
+    document.getElementById('ingameCount').textContent = '0';
+    return;
+  }
+
+  // sırala: oyunda > çevrimiçi > çevrimdışı, isme göre
+  const withStatus = players.map(p => ({ p, s: statusInfo(p) }));
+  withStatus.sort((a, b) => {
+    const rank = x => x.p.gameextrainfo ? 0 : (x.p.personastate > 0 ? 1 : 2);
+    const r = rank(a) - rank(b);
+    if (r !== 0) return r;
+    return a.p.personaname.localeCompare(b.p.personaname, 'tr');
+  });
+
+  const online = withStatus.filter(x => x.p.personastate > 0 || x.p.gameextrainfo).length;
+  const ingame = withStatus.filter(x => x.p.gameextrainfo).length;
+  document.getElementById('onlineCount').textContent = online;
+  document.getElementById('ingameCount').textContent = ingame;
+
+  const html = withStatus.map(({p, s}) => `
+    <div class="friend-card">
+      <div class="avatar-wrap">
+        <img class="avatar" src="${p.avatarmedium || p.avatar}" onerror="this.style.opacity=0.3">
+        <div class="status-dot" style="background:${s.color}"></div>
+      </div>
+      <div class="friend-info">
+        <div class="friend-name">${escapeHtml(p.personaname)}</div>
+        <div class="friend-sub ${s.cls}">${escapeHtml(s.label)}</div>
+      </div>
+    </div>
+  `).join('');
+
+  document.getElementById('listArea').innerHTML = html;
+}
+
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function manualRefresh() { fetchFriends(); }
+
+function startAutoRefresh() {
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = setInterval(fetchFriends, 30000); // 30 saniyede bir
+}
+
+// init
+loadSettings();
+if (settings) {
+  fetchFriends();
+} else {
+  setTimeout(openSettings, 400);
+}
+startAutoRefresh();
+
+// register service worker for installability
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+</script>
+</body>
+</html>
